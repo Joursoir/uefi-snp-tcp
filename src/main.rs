@@ -60,7 +60,25 @@ fn start_net_interface() -> Result {
     // Reset a network adapter and allocate the transmit and receive buffers
     snp.initialize(1024, 1024).unwrap();
 
-    /* TODO: handle packets */
+    info!("Waiting for packets...");
+    loop {
+        let mut buffer = [0u8; 1024];
+        let mut header_size = 0;
+
+        let packet_size = match snp.receive(&mut buffer, Some(&mut header_size), None, None, None) {
+            Ok(size) => size,
+            Err(err) => {
+                // Check if the error indicates that the network interface is not ready
+                if err.status() != Status::NOT_READY {
+                    error!("Error receiving packet: {:?}", err);
+                }
+                continue;
+            }
+        };
+
+        info!("Received packet: {:?}", &buffer[..packet_size]);
+        info!("Header size: {}", header_size);
+    }
 
     info!("Shutting down the network...");
     // Reset a network adapter, leaving it in a state that is safe for another driver to initialize
