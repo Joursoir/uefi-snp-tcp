@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+extern crate alloc;
+
 use log::{error, warn, info};
 use uefi::boot::{self, SearchType};
 use uefi::prelude::*;
