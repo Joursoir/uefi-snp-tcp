@@ -105,7 +105,8 @@ fn start_net_interface() -> Result {
             }
         }
 
-        let arp_packet = match ArpPacket::parse(&eth_frame.payload()) {
+        let mut eth_payload = eth_frame.payload();
+        let arp_packet = match ArpPacket::new(&mut eth_payload) {
             Ok(packet) => packet,
             Err(err) => {
                 error!("Error parsing Ethernet Frame: {:?}", err);
