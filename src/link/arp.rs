@@ -22,6 +22,8 @@ use uefi::{Result};
 pub const NET_ARP_HEAD_SIZE: usize = 2 + 2 + 2 + 2 + (NET_ARP_ETH_HLEN * 2) + (NET_ARP_IPV4_PLEN * 2); // 28
 pub const NET_ARP_ETH_HLEN: usize = 6;
 pub const NET_ARP_IPV4_PLEN: usize = 4;
+pub const NET_ARP_OPER_REQUEST: u16 = 0x0001;
+pub const NET_ARP_OPER_REPLY: u16 = 0x0002;
 
 pub struct ArpPacket<'a> {
     pub buffer: &'a mut [u8],
