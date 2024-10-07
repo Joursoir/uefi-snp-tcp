@@ -2,6 +2,68 @@ use core::fmt;
 use uefi::prelude::*;
 use uefi::{Result};
 
+pub const NET_ETHER_ADDR_LEN: usize = 6;
+pub const NET_ETHER_HEAD_SIZE: usize = 14;
+
+pub struct EthernetFrame<'a> {
+    pub buffer: &'a mut [u8],
+}
+
+impl<'a> EthernetFrame<'a> {
+    pub fn new(buffer: &'a mut [u8]) -> Result<Self> {
+        if buffer.len() < NET_ETHER_HEAD_SIZE {
+            return Err(Status::INVALID_PARAMETER.into());
+        }
+
+        Ok(Self { buffer })
+    }
+
+    pub fn set_dest_mac(&mut self, dest: &[u8; NET_ETHER_ADDR_LEN]) {
+        self.buffer[0] = dest[0];
+        self.buffer[1] = dest[1];
+        self.buffer[2] = dest[2];
+        self.buffer[3] = dest[3];
+        self.buffer[4] = dest[4];
+        self.buffer[5] = dest[5];
+    }
+
+    pub fn dest_mac(&self) -> &[u8] {
+        &self.buffer[0..6]
+    }
+
+    pub fn src_mac(&self) -> &[u8] {
+        &self.buffer[6..12]
+    }
+
+    pub fn set_src_mac(&mut self, src: &[u8; NET_ETHER_ADDR_LEN]) {
+        self.buffer[6] = src[0];
+        self.buffer[7] = src[1];
+        self.buffer[8] = src[2];
+        self.buffer[9] = src[3];
+        self.buffer[10] = src[4];
+        self.buffer[11] = src[5];
+    }
+
+    pub fn set_ethertype(&mut self, ethertype: u16) {
+        self.buffer[12] = (ethertype >> 8) as u8;
+        self.buffer[13] = (ethertype & 0xFF) as u8;
+    }
+
+    pub fn ethertype(&self) -> (u16, EtherProtoType) {
+        let proto_type: u16 = ((self.buffer[12] as u16) << 8) | (self.buffer[13] as u16);
+        (proto_type, EtherProtoType::from_u16(proto_type))
+    }
+
+    // FIXME: buffer can be big enough, so we have to come up with solution
+    // that will determinate effective size of payload
+    pub fn payload(&mut self) -> &mut [u8] {
+        let len_no_fcs = self.buffer.len() - 4;
+        &mut self.buffer[NET_ETHER_HEAD_SIZE..len_no_fcs]
+    }
+
+    // TODO: calculate FCS
+}
+
 // Ethernet protocol type definitions.
 #[derive(Debug, Clone, Copy)]
 pub enum EtherProtoType {
@@ -31,39 +93,5 @@ impl fmt::Display for EtherProtoType {
             EtherProtoType::Unknown(value) => return write!(f, "Unknown(0x{:04X})", value),
         };
         write!(f, "{}", protocol_str)
-    }
-}
-
-pub const NET_ETHER_ADDR_LEN: usize = 6;
-pub const NET_ETHER_HEAD_SIZE: usize = 14;
-
-// Ethernet frame header definition.
-#[repr(C, packed)]
-#[derive(Debug)]
-pub struct EthernetFrame<'a> {
-    pub dst_mac: [u8; NET_ETHER_ADDR_LEN],
-    pub src_mac: [u8; NET_ETHER_ADDR_LEN],
-    pub ether_type: EtherProtoType,
-    pub payload: &'a [u8],
-}
-
-impl<'a> EthernetFrame<'a> {
-    pub fn parse(packet: &'a [u8]) -> Result<EthernetFrame<'a>> {
-        if packet.len() < NET_ETHER_HEAD_SIZE {
-            return Err(Status::INVALID_PARAMETER.into());
-        }
-
-        let dst_mac = packet[0..NET_ETHER_ADDR_LEN].try_into().unwrap();
-        let src_mac = packet[NET_ETHER_ADDR_LEN..2 * NET_ETHER_ADDR_LEN].try_into().unwrap();
-        let ether_type_raw = u16::from_be_bytes([packet[12], packet[13]]);
-        let ether_type = EtherProtoType::from_u16(ether_type_raw);
-        let payload = &packet[NET_ETHER_HEAD_SIZE..];
-
-        Ok(EthernetFrame {
-            dst_mac,
-            src_mac,
-            ether_type,
-            payload,
-        })
     }
 }

@@ -84,7 +84,7 @@ fn start_net_interface() -> Result {
             }
         };
 
-        let eth_frame = match EthernetFrame::parse(&buffer[..packet_size]) {
+        let mut eth_frame = match EthernetFrame::new(&mut buffer[..packet_size]) {
             Ok(frame) => frame,
             Err(err) => {
                 error!("Error parsing Ethernet Frame: {:?}", err);
@@ -92,7 +92,7 @@ fn start_net_interface() -> Result {
             }
         };
 
-        let ether_type = eth_frame.ether_type;
+        let (ether_type_val, ether_type) = eth_frame.ethertype();
 
         info!("We got a packet from {} protocol.", ether_type);
         match ether_type {
@@ -105,7 +105,7 @@ fn start_net_interface() -> Result {
             }
         }
 
-        let arp_packet = match ArpPacket::parse(&eth_frame.payload[..]) {
+        let arp_packet = match ArpPacket::parse(&eth_frame.payload()) {
             Ok(packet) => packet,
             Err(err) => {
                 error!("Error parsing Ethernet Frame: {:?}", err);
