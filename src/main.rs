@@ -30,9 +30,51 @@ fn efi_main() -> Status {
     retval.status()
 }
 
-fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
+fn handle_arp(
+    snp: &ScopedProtocol<SimpleNetwork>,
+    payload: &mut [u8],
+    packet_size: usize
+) -> Result {
     let network_mode: &NetworkMode = snp.mode();
+    let arp_packet = match ArpPacket::new(payload) {
+        Ok(packet) => packet,
+        Err(err) => {
+            error!("Error parsing Ethernet Frame: {:?}", err);
+            return Err(Status::BAD_BUFFER_SIZE.into());
+        }
+    };
 
+    if arp_packet.oper() == NET_ARP_OPER_REQUEST {
+        let mut response_packet: Vec<u8> = vec![0u8; packet_size];
+        // response_packet.copy_from_slice(&buffer[..packet_size]);
+
+        let mut eth_response = EthernetFrame::new(&mut response_packet[..]).unwrap();
+        let my_mac: &[u8; NET_ETHER_ADDR_LEN] = &network_mode.current_address.0[..NET_ETHER_ADDR_LEN].try_into().unwrap(); 
+        // eth_response.set_dest_mac(eth_frame.src_mac().try_into().unwrap()); // blames on borrowing
+        eth_response.set_dest_mac(arp_packet.sha().try_into().unwrap()); // fixme: dirty hack
+        eth_response.set_src_mac(my_mac);
+        eth_response.set_ethertype(0x0806); // ether_type_val
+
+        let mut eth_payload = eth_response.payload();
+        let mut arp_response = ArpPacket::new(&mut eth_payload).unwrap();
+        arp_response.set_htype(arp_packet.htype());
+        arp_response.set_ptype(arp_packet.ptype());
+        arp_response.set_hlen(arp_packet.hlen());
+        arp_response.set_plen(arp_packet.plen());
+        arp_response.set_oper(NET_ARP_OPER_REPLY);
+        arp_response.set_sha(my_mac);
+        arp_response.set_spa(arp_packet.tpa().try_into().unwrap());
+        arp_response.set_tha(arp_packet.sha().try_into().unwrap());
+        arp_response.set_tpa(arp_packet.spa().try_into().unwrap());
+
+        info!("{:?}", arp_response);
+        snp.transmit(0, &response_packet, None, None, None)?;
+    }
+
+    Ok(())
+}
+
+fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
     info!("Waiting for packets...");
     loop {
         let mut buffer = [0u8; 1024];
@@ -57,59 +99,19 @@ fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
             }
         };
 
-        let (ether_type_val, ether_type) = eth_frame.ethertype();
+        let (_, ether_type) = eth_frame.ethertype();
+        let mut eth_payload = eth_frame.payload();
 
         info!("We got a packet from {} protocol.", ether_type);
         match ether_type {
             EtherProtoType::ARP => {
-                ()
+                handle_arp(snp, &mut eth_payload, packet_size)?;
             },
             EtherProtoType::IPv4 | EtherProtoType::IPv6 | EtherProtoType::Unknown(_) => {
                 warn!("Ignore the packet, not implemented");
                 continue;
             }
-        }
-
-        let mut eth_payload = eth_frame.payload();
-        let arp_packet = match ArpPacket::new(&mut eth_payload) {
-            Ok(packet) => packet,
-            Err(err) => {
-                error!("Error parsing Ethernet Frame: {:?}", err);
-                continue;
-            }
-        };
-
-        if arp_packet.oper() == NET_ARP_OPER_REQUEST {
-            let mut response_packet: Vec<u8> = vec![0u8; packet_size];
-            // response_packet.copy_from_slice(&buffer[..packet_size]);
-
-            let mut eth_response = EthernetFrame::new(&mut response_packet[..]).unwrap();
-            let my_mac: &[u8; NET_ETHER_ADDR_LEN] = &network_mode.current_address.0[..NET_ETHER_ADDR_LEN].try_into().unwrap(); 
-            // eth_response.set_dest_mac(eth_frame.src_mac().try_into().unwrap()); // blames on borrowing
-            eth_response.set_dest_mac(arp_packet.sha().try_into().unwrap()); // fixme: dirty hack
-            eth_response.set_src_mac(my_mac);
-            eth_response.set_ethertype(ether_type_val);
-
-            let mut eth_payload = eth_response.payload();
-            let mut arp_response = ArpPacket::new(&mut eth_payload).unwrap();
-            arp_response.set_htype(arp_packet.htype());
-            arp_response.set_ptype(arp_packet.ptype());
-            arp_response.set_hlen(arp_packet.hlen());
-            arp_response.set_plen(arp_packet.plen());
-            arp_response.set_oper(NET_ARP_OPER_REPLY);
-            arp_response.set_sha(my_mac);
-            arp_response.set_spa(arp_packet.tpa().try_into().unwrap());
-            arp_response.set_tha(arp_packet.sha().try_into().unwrap());
-            arp_response.set_tpa(arp_packet.spa().try_into().unwrap());
-
-            info!("{:?}", arp_response);
-            snp.transmit(0, &response_packet, None, None, None)?;
-        }
-
-        info!("Received packet: {:?}", &buffer[..packet_size]);
-        info!("Header size: {}", header_size);
-
-        /* TODO: parse ARP */
+        }    
     }
 }
 
