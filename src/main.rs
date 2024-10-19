@@ -106,7 +106,7 @@ fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
             }
         }    
 
-        snp.transmit(0, &response, None, None, None)?;
+        snp.transmit(0, &response[..packet_size], None, None, None)?;
     }
 }
 
