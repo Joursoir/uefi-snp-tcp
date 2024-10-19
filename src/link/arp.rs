@@ -25,11 +25,11 @@ pub const NET_ARP_IPV4_PLEN: usize = 4;
 pub const NET_ARP_OPER_REQUEST: u16 = 0x0001;
 pub const NET_ARP_OPER_REPLY: u16 = 0x0002;
 
-pub struct ArpPacket<'a> {
+pub struct ArpWriter<'a> {
     pub buffer: &'a mut [u8],
 }
 
-impl<'a> ArpPacket<'a> {
+impl<'a> ArpWriter<'a> {
     pub fn new(buffer: &'a mut [u8]) -> Result<Self> {
         if buffer.len() < NET_ARP_HEAD_SIZE {
             return Err(Status::INVALID_PARAMETER.into());
@@ -43,42 +43,22 @@ impl<'a> ArpPacket<'a> {
         self.buffer[1] = hardware_type as u8;
     }
 
-    pub fn htype(&self) -> u16 {
-        ((self.buffer[0] as u16) << 8) | (self.buffer[1] as u16)
-    }
-
     pub fn set_ptype(&mut self, protocol_type: u16) {
         self.buffer[2] = (protocol_type >> 8) as u8;
         self.buffer[3] = protocol_type as u8;
-    }
-
-    pub fn ptype(&self) -> u16 {
-        ((self.buffer[2] as u16) << 8) | (self.buffer[3] as u16)
     }
 
     pub fn set_hlen(&mut self, hardware_address_length: u8) {
         self.buffer[4] = hardware_address_length;
     }
 
-    pub fn hlen(&self) -> u8 {
-        self.buffer[4]
-    }
-
     pub fn set_plen(&mut self, protocol_address_length: u8) {
         self.buffer[5] = protocol_address_length;
-    }
-
-    pub fn plen(&self) -> u8 {
-        self.buffer[5]
     }
 
     pub fn set_oper(&mut self, operation: u16) {
         self.buffer[6] = (operation >> 8) as u8;
         self.buffer[7] = operation as u8;
-    }
-
-    pub fn oper(&self) -> u16 {
-        ((self.buffer[6] as u16) << 8) | (self.buffer[7] as u16)
     }
 
     pub fn set_sha(&mut self, sender_hardware_address: &[u8; NET_ARP_ETH_HLEN]) {
@@ -90,19 +70,11 @@ impl<'a> ArpPacket<'a> {
         self.buffer[13] = sender_hardware_address[5];
     }
 
-    pub fn sha(&self) -> &[u8] {
-        &self.buffer[8..14]
-    }
-
     pub fn set_spa(&mut self, sender_protocol_address: &[u8; NET_ARP_IPV4_PLEN]) {
         self.buffer[14] = sender_protocol_address[0];
         self.buffer[15] = sender_protocol_address[1];
         self.buffer[16] = sender_protocol_address[2];
         self.buffer[17] = sender_protocol_address[3];
-    }
-
-    pub fn spa(&self) -> &[u8] {
-        &self.buffer[14..18]
     }
 
     pub fn set_tha(&mut self, target_hardware_address: &[u8; NET_ARP_ETH_HLEN]) {
@@ -114,15 +86,57 @@ impl<'a> ArpPacket<'a> {
         self.buffer[23] = target_hardware_address[5];
     }
 
-    pub fn tha(&self) -> &[u8] {
-        &self.buffer[18..24]
-    }
-
     pub fn set_tpa(&mut self, target_protocol_address: &[u8; NET_ARP_IPV4_PLEN]) {
         self.buffer[24] = target_protocol_address[0];
         self.buffer[25] = target_protocol_address[1];
         self.buffer[26] = target_protocol_address[2];
         self.buffer[27] = target_protocol_address[3];
+    }
+}
+
+pub struct ArpReader<'a> {
+    pub buffer: &'a [u8],
+}
+
+impl<'a> ArpReader<'a> {
+    pub fn new(buffer: &'a [u8]) -> Result<Self> {
+        if buffer.len() < NET_ARP_HEAD_SIZE {
+            return Err(Status::INVALID_PARAMETER.into());
+        }
+
+        Ok(Self { buffer })
+    }
+
+    pub fn htype(&self) -> u16 {
+        ((self.buffer[0] as u16) << 8) | (self.buffer[1] as u16)
+    }
+
+    pub fn ptype(&self) -> u16 {
+        ((self.buffer[2] as u16) << 8) | (self.buffer[3] as u16)
+    }
+
+    pub fn hlen(&self) -> u8 {
+        self.buffer[4]
+    }
+
+    pub fn plen(&self) -> u8 {
+        self.buffer[5]
+    }
+
+    pub fn oper(&self) -> u16 {
+        ((self.buffer[6] as u16) << 8) | (self.buffer[7] as u16)
+    }
+
+    pub fn sha(&self) -> &[u8] {
+        &self.buffer[8..14]
+    }
+
+    pub fn spa(&self) -> &[u8] {
+        &self.buffer[14..18]
+    }
+
+    pub fn tha(&self) -> &[u8] {
+        &self.buffer[18..24]
     }
 
     pub fn tpa(&self) -> &[u8] {

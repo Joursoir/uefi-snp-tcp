@@ -12,7 +12,7 @@ use uefi::proto::network::snp::{SimpleNetwork, NetworkMode, NetworkState};
 use uefi::{Identify, Result};
 use crate::{
     link::{
-        arp::{ArpPacket, NET_ARP_OPER_REQUEST, NET_ARP_OPER_REPLY},
+        arp::{ArpWriter, ArpReader, NET_ARP_OPER_REQUEST, NET_ARP_OPER_REPLY},
         ethernet::{EthernetFrame, EtherProtoType, NET_ETHER_ADDR_LEN},
     },
 };
@@ -36,7 +36,7 @@ fn handle_arp(
     packet_size: usize
 ) -> Result {
     let network_mode: &NetworkMode = snp.mode();
-    let arp_packet = match ArpPacket::new(payload) {
+    let arp_packet = match ArpReader::new(payload) {
         Ok(packet) => packet,
         Err(err) => {
             error!("Error parsing Ethernet Frame: {:?}", err);
@@ -56,11 +56,8 @@ fn handle_arp(
         eth_response.set_ethertype(0x0806); // ether_type_val
 
         let mut eth_payload = eth_response.payload();
-        let mut arp_response = ArpPacket::new(&mut eth_payload).unwrap();
-        arp_response.set_htype(arp_packet.htype());
-        arp_response.set_ptype(arp_packet.ptype());
-        arp_response.set_hlen(arp_packet.hlen());
-        arp_response.set_plen(arp_packet.plen());
+        eth_payload.copy_from_slice(arp_packet.buffer);
+        let mut arp_response = ArpWriter::new(&mut eth_payload).unwrap();
         arp_response.set_oper(NET_ARP_OPER_REPLY);
         arp_response.set_sha(my_mac);
         arp_response.set_spa(arp_packet.tpa().try_into().unwrap());
