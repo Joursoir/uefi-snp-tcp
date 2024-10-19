@@ -5,11 +5,11 @@ use uefi::{Result};
 pub const NET_ETHER_ADDR_LEN: usize = 6;
 pub const NET_ETHER_HEAD_SIZE: usize = 14;
 
-pub struct EthernetFrame<'a> {
+pub struct EthernetWriter<'a> {
     pub buffer: &'a mut [u8],
 }
 
-impl<'a> EthernetFrame<'a> {
+impl<'a> EthernetWriter<'a> {
     pub fn new(buffer: &'a mut [u8]) -> Result<Self> {
         if buffer.len() < NET_ETHER_HEAD_SIZE {
             return Err(Status::INVALID_PARAMETER.into());
@@ -27,14 +27,6 @@ impl<'a> EthernetFrame<'a> {
         self.buffer[5] = dest[5];
     }
 
-    pub fn dest_mac(&self) -> &[u8] {
-        &self.buffer[0..6]
-    }
-
-    pub fn src_mac(&self) -> &[u8] {
-        &self.buffer[6..12]
-    }
-
     pub fn set_src_mac(&mut self, src: &[u8; NET_ETHER_ADDR_LEN]) {
         self.buffer[6] = src[0];
         self.buffer[7] = src[1];
@@ -49,11 +41,6 @@ impl<'a> EthernetFrame<'a> {
         self.buffer[13] = (ethertype & 0xFF) as u8;
     }
 
-    pub fn ethertype(&self) -> (u16, EtherProtoType) {
-        let proto_type: u16 = ((self.buffer[12] as u16) << 8) | (self.buffer[13] as u16);
-        (proto_type, EtherProtoType::from_u16(proto_type))
-    }
-
     // FIXME: buffer can be big enough, so we have to come up with solution
     // that will determinate effective size of payload
     pub fn payload(&mut self) -> &mut [u8] {
@@ -62,6 +49,38 @@ impl<'a> EthernetFrame<'a> {
     }
 
     // TODO: calculate FCS
+}
+
+pub struct EthernetReader<'a> {
+    pub buffer: &'a [u8],
+}
+
+impl<'a> EthernetReader<'a> {
+    pub fn new(buffer: &'a [u8]) -> Result<Self> {
+        if buffer.len() < NET_ETHER_HEAD_SIZE {
+            return Err(Status::INVALID_PARAMETER.into());
+        }
+
+        Ok(Self { buffer })
+    }
+
+    pub fn dest_mac(&self) -> &[u8] {
+        &self.buffer[0..6]
+    }
+
+    pub fn src_mac(&self) -> &[u8] {
+        &self.buffer[6..12]
+    }
+
+    pub fn ethertype(&self) -> (u16, EtherProtoType) {
+        let proto_type: u16 = ((self.buffer[12] as u16) << 8) | (self.buffer[13] as u16);
+        (proto_type, EtherProtoType::from_u16(proto_type))
+    }
+
+    pub fn payload(&self) -> &[u8] {
+        let len_no_fcs = self.buffer.len() - 4;
+        &self.buffer[NET_ETHER_HEAD_SIZE..len_no_fcs]
+    }
 }
 
 // Ethernet protocol type definitions.

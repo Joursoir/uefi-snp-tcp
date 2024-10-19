@@ -13,7 +13,7 @@ use uefi::{Identify, Result};
 use crate::{
     link::{
         arp::{ArpWriter, ArpReader, NET_ARP_OPER_REQUEST, NET_ARP_OPER_REPLY},
-        ethernet::{EthernetFrame, EtherProtoType, NET_ETHER_ADDR_LEN},
+        ethernet::{EthernetWriter, EthernetReader, EtherProtoType, NET_ETHER_ADDR_LEN},
     },
 };
 
@@ -32,11 +32,12 @@ fn efi_main() -> Status {
 
 fn handle_arp(
     snp: &ScopedProtocol<SimpleNetwork>,
-    payload: &mut [u8],
-    packet_size: usize
+    eth_in: EthernetReader,
+    eth_out: &mut EthernetWriter,
 ) -> Result {
     let network_mode: &NetworkMode = snp.mode();
-    let arp_packet = match ArpReader::new(payload) {
+
+    let arp_packet = match ArpReader::new(eth_in.payload()) {
         Ok(packet) => packet,
         Err(err) => {
             error!("Error parsing Ethernet Frame: {:?}", err);
@@ -45,36 +46,27 @@ fn handle_arp(
     };
 
     if arp_packet.oper() == NET_ARP_OPER_REQUEST {
-        let mut response_packet: Vec<u8> = vec![0u8; packet_size];
-        // response_packet.copy_from_slice(&buffer[..packet_size]);
-
-        let mut eth_response = EthernetFrame::new(&mut response_packet[..]).unwrap();
-        let my_mac: &[u8; NET_ETHER_ADDR_LEN] = &network_mode.current_address.0[..NET_ETHER_ADDR_LEN].try_into().unwrap(); 
-        // eth_response.set_dest_mac(eth_frame.src_mac().try_into().unwrap()); // blames on borrowing
-        eth_response.set_dest_mac(arp_packet.sha().try_into().unwrap()); // fixme: dirty hack
-        eth_response.set_src_mac(my_mac);
-        eth_response.set_ethertype(0x0806); // ether_type_val
-
-        let mut eth_payload = eth_response.payload();
-        eth_payload.copy_from_slice(arp_packet.buffer);
+        let mut eth_payload = eth_out.payload();
         let mut arp_response = ArpWriter::new(&mut eth_payload).unwrap();
+        let my_mac: &[u8; NET_ETHER_ADDR_LEN] = &network_mode.current_address.0[..NET_ETHER_ADDR_LEN].try_into().unwrap(); 
         arp_response.set_oper(NET_ARP_OPER_REPLY);
         arp_response.set_sha(my_mac);
         arp_response.set_spa(arp_packet.tpa().try_into().unwrap());
         arp_response.set_tha(arp_packet.sha().try_into().unwrap());
         arp_response.set_tpa(arp_packet.spa().try_into().unwrap());
-
-        info!("{:?}", arp_response);
-        snp.transmit(0, &response_packet, None, None, None)?;
     }
 
     Ok(())
 }
 
 fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
+    let network_mode: &NetworkMode = snp.mode();
+    let my_mac: &[u8; NET_ETHER_ADDR_LEN] = &network_mode.current_address.0[..NET_ETHER_ADDR_LEN].try_into().unwrap(); 
+
     info!("Waiting for packets...");
     loop {
         let mut buffer = [0u8; 1024];
+        let mut response = [0u8; 1024];
         let mut header_size = 0;
 
         let packet_size = match snp.receive(&mut buffer, Some(&mut header_size), None, None, None) {
@@ -88,7 +80,7 @@ fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
             }
         };
 
-        let mut eth_frame = match EthernetFrame::new(&mut buffer[..packet_size]) {
+        let eth_frame = match EthernetReader::new(&buffer[..packet_size]) {
             Ok(frame) => frame,
             Err(err) => {
                 error!("Error parsing Ethernet Frame: {:?}", err);
@@ -96,19 +88,25 @@ fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
             }
         };
 
+        response[..packet_size].copy_from_slice(eth_frame.buffer);
+        let mut eth_response = EthernetWriter::new(&mut response).unwrap();
+        eth_response.set_dest_mac(eth_frame.src_mac().try_into().unwrap());
+        eth_response.set_src_mac(my_mac);
+
         let (_, ether_type) = eth_frame.ethertype();
-        let mut eth_payload = eth_frame.payload();
 
         info!("We got a packet from {} protocol.", ether_type);
         match ether_type {
             EtherProtoType::ARP => {
-                handle_arp(snp, &mut eth_payload, packet_size)?;
+                handle_arp(snp, eth_frame, &mut eth_response)?;
             },
             EtherProtoType::IPv4 | EtherProtoType::IPv6 | EtherProtoType::Unknown(_) => {
                 warn!("Ignore the packet, not implemented");
                 continue;
             }
         }    
+
+        snp.transmit(0, &response, None, None, None)?;
     }
 }
 
