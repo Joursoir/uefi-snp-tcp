@@ -16,6 +16,7 @@ use crate::{
         ethernet::{EthernetWriter, EthernetReader, EtherProtoType, NET_ETHER_ADDR_LEN},
     },
     networkl::{
+        checksum::{verify_internet_checksum},
         ipv4::{*},
         icmpv4::{*},
     },
@@ -76,7 +77,9 @@ fn handle_icmpv4(
         }
     };
 
-    // TODO: verify checksum
+    if !verify_internet_checksum(icmp_packet.buffer) {
+        return Err(Status::CRC_ERROR.into());
+    }
 
     let mut ipv4_payload = ipv4_out.payload();
     if icmp_packet.is_echo_request() {
@@ -97,6 +100,10 @@ fn handle_ipv4(
         Ok(packet) => {
             let mut ipv4_payload = eth_out.payload();
             let mut ipv4_response = Ipv4Writer::new(&mut ipv4_payload)?;
+
+            if !verify_internet_checksum(packet.buffer) {
+                return Err(Status::CRC_ERROR.into());
+            }
 
             let ret = match packet.protocol() {
                 1 => handle_icmpv4(packet, &mut ipv4_response),
