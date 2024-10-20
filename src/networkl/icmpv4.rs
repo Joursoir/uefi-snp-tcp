@@ -1,6 +1,8 @@
 use uefi::prelude::*;
 use uefi::{Result};
 
+use super::checksum::internet_checksum;
+
 pub const NET_ICMPV4_HEADER_LENGTH: usize = 8;
 pub const NET_ICMPV4_TYPE_ECHO_REQ: u8 = 8;
 pub const NET_ICMPV4_TYPE_ECHO_REP: u8 = 0;
@@ -24,6 +26,14 @@ impl<'a> Icmpv4Writer<'a> {
 
     pub fn set_code(&mut self, code: u8) {
         self.buffer[1] = code;
+    }
+
+    pub fn calc_checksum(&mut self) {
+        self.buffer[2] = 0;
+        self.buffer[3] = 0;
+        let checksum = internet_checksum(self.buffer);
+        self.buffer[2] = (checksum >> 8) as u8;
+        self.buffer[3] = (checksum & 0xff) as u8;
     }
 }
 
