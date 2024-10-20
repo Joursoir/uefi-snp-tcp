@@ -17,6 +17,7 @@ use crate::{
     },
     networkl::{
         ipv4::{*},
+        icmpv4::{*},
     },
 };
 
@@ -63,6 +64,31 @@ fn handle_arp(
     Ok(())
 }
 
+fn handle_icmpv4(
+    ipv4_in: Ipv4Reader,
+    ipv4_out: &mut Ipv4Writer,
+) -> Result {
+    let icmp_packet = match Icmpv4Reader::new(ipv4_in.payload()) {
+        Ok(packet) => packet,
+        Err(err) => {
+            error!("Error parsing ICMP v4 packet: {:?}", err);
+            return Err(Status::BAD_BUFFER_SIZE.into());
+        }
+    };
+
+    // TODO: verify checksum
+
+    let mut ipv4_payload = ipv4_out.payload();
+    if icmp_packet.is_echo_request() {
+        // We have to send echo reply back 
+        let mut icmp_response = Icmpv4Writer::new(&mut ipv4_payload)?;
+        icmp_response.set_type(NET_ICMPV4_TYPE_ECHO_REP);
+        // TODO: calculate checksum
+    }
+
+    Ok(())
+}
+
 fn handle_ipv4(
     eth_in: EthernetReader,
     eth_out: &mut EthernetWriter,
@@ -73,6 +99,7 @@ fn handle_ipv4(
             let mut ipv4_response = Ipv4Writer::new(&mut ipv4_payload)?;
 
             let ret = match packet.protocol() {
+                1 => handle_icmpv4(packet, &mut ipv4_response),
                 _ => return Err(Status::UNSUPPORTED.into()),
             };
 
