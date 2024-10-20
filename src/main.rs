@@ -15,9 +15,13 @@ use crate::{
         arp::{ArpWriter, ArpReader, NET_ARP_OPER_REQUEST, NET_ARP_OPER_REPLY},
         ethernet::{EthernetWriter, EthernetReader, EtherProtoType, NET_ETHER_ADDR_LEN},
     },
+    networkl::{
+        ipv4::{*},
+    },
 };
 
 mod link;
+mod networkl;
 
 #[entry]
 fn efi_main() -> Status {
@@ -57,6 +61,28 @@ fn handle_arp(
     }
 
     Ok(())
+}
+
+fn handle_ipv4(
+    eth_in: EthernetReader,
+    eth_out: &mut EthernetWriter,
+) -> Result {
+    match Ipv4Reader::new(eth_in.payload()) {
+        Ok(packet) => {
+            let mut ipv4_payload = eth_out.payload();
+            let mut ipv4_response = Ipv4Writer::new(&mut ipv4_payload)?;
+
+            let ret = match packet.protocol() {
+                _ => return Err(Status::UNSUPPORTED.into()),
+            };
+
+            ret
+        }
+        Err(err) => {
+            error!("Error parsing IPV4 packet: {:?}", err);
+            return Err(Status::BAD_BUFFER_SIZE.into());
+        }
+    }
 }
 
 fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
@@ -100,8 +126,10 @@ fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
             EtherProtoType::ARP => {
                 handle_arp(snp, eth_frame, &mut eth_response)?;
             },
-            EtherProtoType::IPv4 | EtherProtoType::IPv6 | EtherProtoType::Unknown(_) => {
-                warn!("Ignore the packet, not implemented");
+            EtherProtoType::IPv4 => {
+                handle_ipv4(eth_frame, &mut eth_response)?;
+            },
+            EtherProtoType::IPv6 | EtherProtoType::Unknown(_) => {
                 continue;
             }
         }    
