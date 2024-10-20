@@ -1,6 +1,8 @@
 use uefi::prelude::*;
 use uefi::{Result};
 
+use super::checksum::internet_checksum;
+
 const NET_IPV4_MIN_HEADER_LENGTH: usize = 20;
 
 pub struct Ipv4Writer<'a> {
@@ -67,6 +69,14 @@ impl<'a> Ipv4Writer<'a> {
         self.buffer[17] = dest_ip[1];
         self.buffer[18] = dest_ip[2];
         self.buffer[19] = dest_ip[3];
+    }
+
+    pub fn calc_checksum(&mut self) {
+        self.buffer[10] = 0;
+        self.buffer[11] = 0;
+        let checksum = internet_checksum(&self.buffer[..self.header_len()]);
+        self.buffer[10] = (checksum >> 8) as u8;
+        self.buffer[11] = (checksum & 0xff) as u8;
     }
 
     pub fn payload(&mut self) -> &mut [u8] {
