@@ -142,7 +142,7 @@ fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
         };
 
         response[..packet_size].copy_from_slice(eth_frame.buffer);
-        let mut eth_response = EthernetWriter::new(&mut response).unwrap();
+        let mut eth_response = EthernetWriter::new(&mut response[..packet_size]).unwrap();
         eth_response.set_dest_mac(eth_frame.src_mac().try_into().unwrap());
         eth_response.set_src_mac(my_mac);
 
