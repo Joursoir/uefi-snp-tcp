@@ -123,6 +123,14 @@ fn packet_processing_loop(snp: &ScopedProtocol<SimpleNetwork>) -> Result {
     let network_mode: &NetworkMode = snp.mode();
     let my_mac: &[u8; NET_ETHER_ADDR_LEN] = &network_mode.current_address.0[..NET_ETHER_ADDR_LEN].try_into().unwrap(); 
 
+    // When control is handed to us by firmware, it sets a watchdog timer for
+    // 5 minutes, after which the firmware will try to reset the system as it
+    // assumes we have hung. Disable it completely.
+    let status = uefi::boot::set_watchdog_timer(0, 0, None);
+    if status.is_err() {
+        warn!("Unable to reset the watchdog: {:?}", status);
+    }
+
     info!("Waiting for packets...");
     loop {
         let mut buffer = [0u8; 1024];
