@@ -1,3 +1,4 @@
+use core::fmt;
 use uefi::prelude::*;
 use uefi::{Result};
 
@@ -68,5 +69,18 @@ impl<'a> Icmpv4Reader<'a> {
 
     pub fn payload(&self) -> &[u8] {
         &self.buffer[NET_ICMPV4_HEADER_LENGTH..]
+    }
+}
+
+impl fmt::Debug for Icmpv4Reader<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Icmpv4Reader")
+            .field("type", &self.r#type())
+            .field("code", &self.code())
+            .field("checksum", &format_args!("0x{:02x}", &self.checksum()))
+            .field("rest of the header", &format_args!("{:02x?}", &self.buffer[4..NET_ICMPV4_HEADER_LENGTH]))
+            .field("payload (hex)", &format_args!("{:02x?}", self.payload()))
+            .field("total length", &self.buffer.len())
+            .finish()
     }
 }

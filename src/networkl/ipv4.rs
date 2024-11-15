@@ -1,3 +1,4 @@
+use core::fmt;
 use uefi::prelude::*;
 use uefi::{Result};
 
@@ -155,5 +156,26 @@ impl<'a> Ipv4Reader<'a> {
         let start = self.header_len();
 
         &self.buffer[start..]
+    }
+}
+
+impl fmt::Debug for Ipv4Reader<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Ipv4Reader")
+            .field("version", &self.version())
+            .field("ihl (header length)", &format_args!("0x{:02x} ({:} bytes)",
+                &self.ihl(), &self.header_len()))
+            .field("tos", &format_args!("0x{:02x}", &self.tos()))
+            .field("total_length", &self.total_length())
+            .field("id", &format_args!("0x{:02x}", &self.id()))
+            .field("flags", &format_args!("0x{:02x}", &self.flags()))
+            .field("fragment_offset", &format_args!("0x{:02x}", &self.fragment_offset()))
+            .field("ttl", &self.ttl())
+            .field("protocol", &self.protocol())
+            .field("checksum", &format_args!("0x{:02x}", &self.checksum()))
+            .field("src_ip", &format_args!("{:?}", &self.src_ip()))
+            .field("dest_ip", &format_args!("{:?}", &self.dest_ip()))
+            .field("total length", &self.buffer.len())
+            .finish_non_exhaustive()
     }
 }
