@@ -44,7 +44,8 @@ impl<'a> EthernetWriter<'a> {
     // FIXME: buffer can be big enough, so we have to come up with solution
     // that will determinate effective size of payload
     pub fn payload(&mut self) -> &mut [u8] {
-        let len_no_fcs = self.buffer.len() - 4;
+        // FIXME: TAP interface sends frames without FCS
+        let len_no_fcs = self.buffer.len(); // - 4?
         &mut self.buffer[NET_ETHER_HEAD_SIZE..len_no_fcs]
     }
 
@@ -78,7 +79,8 @@ impl<'a> EthernetReader<'a> {
     }
 
     pub fn payload(&self) -> &[u8] {
-        let len_no_fcs = self.buffer.len() - 4;
+        // FIXME: TAP interface sends frames without FCS
+        let len_no_fcs = self.buffer.len(); // - 4?
         &self.buffer[NET_ETHER_HEAD_SIZE..len_no_fcs]
     }
 }
