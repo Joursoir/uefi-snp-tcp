@@ -83,6 +83,17 @@ impl<'a> EthernetReader<'a> {
     }
 }
 
+impl fmt::Debug for EthernetReader<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EthernetReader")
+            .field("dest_mac", &format_args!("{:x?}", &self.dest_mac()))
+            .field("src_mac", &format_args!("{:x?}", &self.src_mac()))
+            .field("ethertype", &format_args!("0x{:02x}", &self.ethertype().0))
+            .field("payload", &format_args!("{:x?}", &self.payload()))
+            .finish_non_exhaustive()
+    }
+}
+
 // Ethernet protocol type definitions.
 #[derive(Debug, Clone, Copy)]
 pub enum EtherProtoType {
