@@ -105,10 +105,15 @@ fn handle_ipv4(
                 return Err(Status::CRC_ERROR.into());
             }
 
+            ipv4_response.set_src_ip(packet.dest_ip().try_into().unwrap());
+            ipv4_response.set_dest_ip(packet.src_ip().try_into().unwrap());
+
             let ret = match packet.protocol() {
                 1 => handle_icmpv4(packet, &mut ipv4_response),
                 _ => return Err(Status::UNSUPPORTED.into()),
             };
+
+            ipv4_response.calc_checksum();
 
             ret
         }
