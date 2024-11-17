@@ -86,7 +86,7 @@ fn handle_icmpv4(
         // We have to send echo reply back 
         let mut icmp_response = Icmpv4Writer::new(&mut ipv4_payload)?;
         icmp_response.set_type(NET_ICMPV4_TYPE_ECHO_REP);
-        // TODO: calculate checksum
+        icmp_response.calc_checksum();
     }
 
     Ok(())
