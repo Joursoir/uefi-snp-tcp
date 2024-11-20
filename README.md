@@ -10,7 +10,41 @@ $ cargo build --target x86_64-unknown-uefi
 
 ## Setting Up a Test Environment
 
-TODO: document
+The test environment is pre-configured in the `qemu` directory. To start the environment, simply run the provided script:
+
+```
+$ cd qemu
+# ./start-qemu.sh
+```
+
+Once QEMU is running and the TAP interface is up, you can interact with the test network. For example, send ping within the virtual network:
+
+```
+$ ping -I tap0 -4 192.168.0.3
+```
+
+You can monitor network traffic using a tool like [tshark](https://www.wireshark.org/docs/man-pages/tshark.html):
+
+```
+$ tshark -i tap0
+```
+
+_Note_: The file `OVMF-debug-full-network-stack.fd` is a debug build of OVMF, containing a full suite of accessible network drivers. It was generated using the following build configuration and is based on [commit 0f3867fa](https://github.com/tianocore/edk2/commit/0f3867fa6ef0553e26c42f7d71ff6bdb98429742).
+
+```
+build --buildtarget=DEBUG --platform=OvmfPkg/OvmfPkgX64.dsc \
+  -D NETWORK_ENABLE=TRUE \
+  -D NETWORK_SNP_ENABLE=TRUE \
+  -D NETWORK_IP4_ENABLE=TRUE \
+  -D NETWORK_IP6_ENABLE=TRUE \
+  -D NETWORK_TLS_ENABLE=TRUE \
+  -D NETWORK_HTTP_ENABLE=TRUE \
+  -D NETWORK_HTTP_BOOT_ENABLE=TRUE \
+  -D NETWORK_ALLOW_HTTP_CONNECTIONS=TRUE \
+  -D NETWORK_ISCSI_ENABLE=TRUE \
+  -D NETWORK_ISCSI_MD5_ENABLE=TRUE \
+  -D NETWORK_VLAN_ENABLE=TRUE
+```
 
 ## Theory
 
