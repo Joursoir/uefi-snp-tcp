@@ -1,0 +1,3 @@
+The UEFI specification defines a fallback boot path that based on the architecture — `\EFI\BOOT\BOOT{arch}.EFI` (`BOOTx64.EFI` for amd64 or `BOOTia32.EFI` for i386/IA32).
+
+Place there any UEFI applications you want to run, using the name described above.
